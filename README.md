@@ -1,2 +1,4 @@
-# knit-programming
-Writing and grading a knitting pattern in R Markdown
+# Writing and Grading a pattern in R Markdown
+Over winter break I decided to challenge myself by writing and grading a knitting pattern in R markdown instead of the traditional spreadsheet method. This is my first attempt at it, which was successful in that it works as a pattern for a simple drop shoulder sweater design. I plan to continue refining it as there are a couple of tricky spots calculating short rows, and I think the formatting could be improved. Eventually, I would like to program an interactive knitting pattern as well.\ 
+For now, I hope this is useful to others interested in programming patterns!\
+More information on the specific design is in the markdown document, and I have also made a Youtube video walking through the code line by line (https://youtu.be/HVmKK_h6gN8?si=A17vEGjp4XfjloIN)
