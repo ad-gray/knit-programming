@@ -1,0 +1,503 @@
+---
+title: "Sweater_Pattern_Exp"
+author: "Gray, Abigail"
+date: "2026-01-09"
+output: html_document
+---
+
+## Basic Cable Sweater Grading
+This experiment will test grading and writing a sweater pattern in R markdown. Things to note: This is a basic drop shoulder sweater design. Fit and style can be changed by changing the ease vector before creating garment measurements. Note that all ribbing/finishing included is personal preference / specific to this design and is totally customizable. I do not provide in depth explanations about design choices, and knowledge of garment construction / knitting design is assumed. 
+
+First, importing data. We will import the **size chart data** and label it. This size chart is available for free (email sign up) at One Wild Designs. Note that the size chart is easier to manipulate and clean up if you transpose it by making the columns into rows and rows into columns--I didn't do it this way because I'm used to this setup from spreadsheeting, but R does prefer working in columns!
+
+```{r, include=TRUE}
+# load packages
+library(tidyverse)
+#import data
+owd_sizechart <- read_csv("OWD Size Chart - Sheet1.csv")
+```
+I will now clean up the size chart data by removing unecessary rows, renaming columns and rows, and then remove rows that will not be used in this specific pattern.
+
+```{r, include=TRUE}
+# delete unnecessary rows
+revised_owd <- owd_sizechart[-c(1, 2, 14, 22),]
+# rename header column
+colnames(revised_owd) <- c('Measurement', 'size_1', 'size_2', 'size_3', 'size_4', 'size_5', 'size_6', 'size_7', 'size_8', 'size_9', 'size_10', 'size_11')
+```
+
+```{r, include=TRUE}
+# now we can change the sizechart data frame as necessary, firstly by removing rows (measurements) that we won't use for this pattern
+bc_sizechart <- revised_owd[-c(1, 2, 4, 6, 7, 17, 18, 22, 23, 25), ]
+
+```
+I will then create a new dataframe with all measurements in cm, since that is what I'll use to grade the pattern. 
+
+```{r, include=TRUE}
+# create new columns with measurements in cm
+bc_sizechart <- transform(bc_sizechart, sz_1 = size_1*2.54, sz_2 = size_2*2.54, sz_3 = size_3 *2.54, sz_4 = size_4*2.54, sz_5 = size_5*2.54, sz_6 = size_6*2.54, sz_7 = size_7*2.54, sz_8 = size_8*2.54, sz_9 = size_9*2.54, sz_10 = size_10*2.54, sz_11 = size_11*2.54)
+
+# put those columns in a new data frame that just contains the cm measurements
+bc_sizechart_cm <- subset(bc_sizechart, select= c(1, 13:23))
+
+# this is the data frame we will use as we calculate garment size
+```
+
+
+*We will assume that all "center back to waist" measurements are excluding ribbing.* 
+
+The size chart doesn't contain a measurement for the front body and back body (chest measurement / 2), so I will add those two rows.
+
+```{r, include=TRUE}
+# create new rows with front body and back body measurements
+
+# this is the easiest way i've seen to do it since I didn't transpose the data
+
+#create new df with just chest measurement
+bc_chest <- bc_sizechart_cm[c(1),c(2:12)]
+
+# convert to matrix, divide
+bc_mat <- as.matrix(bc_chest)
+vec <- 2
+div_mat <- sweep(bc_mat, 1, vec, '/')
+
+# turn back into df
+bc_body <- as.data.frame(div_mat)
+
+# duplicate this rq
+body_back <- bc_body
+
+# add column with name
+bc_body$Measurement <- 'Front Body' 
+body_back$Measurement <- 'Back Body'
+
+# reorder columns
+front_body <- bc_body[,c(12, 1:11)]
+back_body <- body_back[,c(12, 1:11)]
+
+# yay we did it...
+# now add these dataframes to our main size chart
+comp_bc <- rbind(bc_sizechart_cm, front_body, back_body)
+
+# do i care abt reordering rows... no.
+```
+
+Now, to calculate **garment size**, I will add ease measurements to each body size.
+*Note that ease is crucial to the design and is something you should decide upon before writing the pattern, either by visualizing/conceptualizing/comparing garments, or by knitting an experimental sample.*
+I think the best way to approach this is:
+1. Create a dataframe with our ease measurements (which we will add manually for each design). 
+2. Convert it to a vector 
+3. Make the comp_bc df into a matrix in order to add our ease vector to each column
+4. Convert back into a df. 
+This will allow us to **only change the ease vector** for each design and get our garment measurements. Very reusable!!
+
+```{r, include=TRUE}
+# create ease df (this is not necessary i'm just doing it bc i want a df of ease!)
+ease_df <- data.frame(
+    Ease = c(14.5, 25, 16.7, 18.6, 13.7, 8, 1, 6.7, 7.6, 8.25, 3, 10.4, 15.6, 14, -14.6, 8, 6)
+)
+
+# create ease vector
+ease_vc = c(14.5, 25, 16.7, 18.6, 13.7, 8, 1, 6.7, 7.6, 8.25, 3, 10.4, 15.6, 14, -14.6, 8, 6)
+
+# convert size chart df to a matrix--remove column 1 of names first
+bc_mat2 <- as.matrix(comp_bc[c(2:12)])
+
+# add ease vector
+ease_mat <- sweep(bc_mat2, 1, ease_vc, '+')
+
+# convert back into a dataframe
+garment_measurement <- as.data.frame(ease_mat)
+
+# i have not added in the name column as we will do more work with the matrix and df first
+```
+
+
+### **Customizing this garment measurement chart to the Basic Cable design**
+
+Now that we have our garment measurements, we will customize this dataframe further for our design.\ 
+
+### Adding a Shoulder Width Row
+To calculate neck and shoulder shaping, we need a shoulder measurement. This can be calculated by subtracting the neck width from the crossback. We will create a new row, *Shoulder Width*, with this measurement. 
+
+```{r, include=TRUE}
+# create new row with shoulder width measurement
+# we will do this the same way as our front/back body row addition
+
+#create new df with just crossback measurement
+bc_crossback <- garment_measurement[c(13),c(1:11)]
+
+# convert to matrix
+crossb_mat <- as.matrix(bc_crossback)
+
+# calculate vector from neck width measurement
+v.neck.1 <- garment_measurement[c(12),c(1:11)]
+shoulder_mat <- sweep(bc_crossback, 2, v.neck.1, '-')
+
+# divide this by 2 for shoulder width
+vec <- 2
+shoulder_mat_2 <- sweep(shoulder_mat, 2, vec, '/')
+
+# turn this back into a dataframe
+shoulder_width <- as.data.frame(shoulder_mat_2)
+
+# now add this dataframe to our main size chart
+garment_measurement.2 <- rbind(garment_measurement, shoulder_width)
+
+```
+
+
+```{r, include=TRUE}
+# rename df
+bc_sizechart_final <- comp_bc
+bc_garment_measurement_final <- garment_measurement.2
+bc_ease_final <- ease_df
+
+# save dataframes
+save(bc_sizechart_final, file="bc_sizechart_final.Rda")
+save(bc_garment_measurement_final, file="bc_garment_measurement_final.Rda")
+save(bc_ease_final, file ="bc_ease_final.Rda")
+
+```
+Now we have a complete size chart, garment chart, and ease. We can begin writing the pattern!\
+
+START HERE once you've saved the dataframes so you don't have to rerun everything.
+```{r, include=TRUE}
+# load packages
+library(tidyverse)
+library(DescTools)
+# load data
+load("bc_garment_measurement_final.Rda")
+load("bc_sizechart_final.Rda")
+
+# i'm going to create an object for the row and width gauge. sts = stitches per cm, row = rows per cm. 
+sts <- 2.2
+row <- 2.8
+```
+## **Now we have a complete size chart, garment chart, and ease. We can begin writing the pattern!**
+
+This design is a top down, drop shoulder sweater. This means that we will start by casting on the back. Because I want back neck shaping, we will cast on and create 2 little triangles with increases on both ends, which will join in the middle to become the back piece. Short rows on the outer edges for shoulder shaping will continue, and then we will work in stockinette until we reach armscye depth. We will place these stitches on hold and pick up along the slanted trapezoid sides for the front. The front will be worked with increases for the neckline before knitting in stockinette until armscye depth. At this point, the front and back pieces will be joined and the work will continue in the round until we've reached desired length, finished by 5 cm of ribbing.\
+After binding off the body, the stitches for the sleeves will be picked up along the armholes. Gradual increases will be worked for half the sleeves, and then more dramatic increases for the final part, finished by 5 cm of ribbing.\  
+The collar will be picked up and worked in ribbing before blocking and finishing the sweater.\
+
+*Note that this experiment is focusing on calculating and grading the pattern, not the technical writing aspect which will definitely be edited up--this includes explaining techniques (e.g. double knitting)*
+
+### **Calculations**
+Back shoulder cast on:\
+We must know our shoulder width stitch count and shoulder drop depth row count.\
+We will calculate the back shaping below before adding in the neckline shaping.\
+```{r, include=TRUE}
+
+# calculate shoulder shaping
+# shoulder width stitch count:
+shoulderwidth.sts <- RoundTo(
+    bc_garment_measurement_final[c(18),c(1:11)] * sts,
+    2)
+# shoulder drop depth rows
+shoulderdrop_row <- RoundTo(
+    bc_garment_measurement_final[c(7),c(1:11)] * row,
+    2)
+
+# determine increases
+shoulder_increase <- shoulderwidth.sts / (shoulderdrop_row / 2)
+
+# this shows us that our increases will be a combination of 4, 5, and 6 stitches.i do wish there was a way to automate this but oh well
+# now we need combinations of 4 and 5 that get us to 30-38 sts
+# sz 1 and 2 = (4 x 5) + (5 x 2) = 30 sts over 7 increase rows, 14 total rows
+# sz 3 through 7 = (4 x 3) + (5 x 4) = 32 sts over 7 increase rows, 14 total rows
+# sz 8 = (4 x 1) + (5 x 6) = 34 sts over 7 increase rows
+# sz 9 and 10 = (5 x 6) + (6 x 1) = 36 sts over 7 increase rows
+# sz 11 = (5 x 4) + (6 x 3) = 38 sts over 7 increase rows
+
+```
+This increase ratio helps us manually calculate combinations of 4, 5, and 6 that will get us to 30-38 sts over 7 increase rows (14 total rows).  
+
+We will use this info when writing the short rows.\ 
+First, lets calculate our back neckline shaping.
+
+```{r, include=TRUE}
+# calculate back neckline shaping
+# figure out neck width stitch count
+neckwidth.sts <- RoundTo(
+    bc_garment_measurement_final[c(12),c(1:11)] * sts,
+    2)
+# 80% of these stitches will be cast on to join the two triangles
+neck_80 <- RoundTo(
+    neckwidth.sts * 0.8,
+    2)
+# we need to increase this many stitches (divided equally on each side) on the neckline of our triangles
+neck_increase <- neckwidth.sts - neck_80
+# size 1 and 2 = 1, 2, 2, = 5 sts on each side (10 total) over 3 increase rows (6 rows total)
+# size 3 - 9 = 2, 2, 2, = 6 sts on each side (12 total) over 3 increase rows (6 rows total)
+# size 10 and 11 = 1, 2, 2, 2, = 7 sts on each side (14 total) over 4 increase rows (8 rows total)
+```
+
+We will combine the back neck shaping and shoulder shaping to create two triangles, join them with cast on back neck stitches, and then continue shoulder shaping (14 rows total).   
+
+## **Cast on**\
+We will cast on each side of the back seperately and work in short rows to shape shoulders and increase for neckline.  
+
+*Left Back Triangle*\
+Cast on `r shoulderwidth.sts` stitches. Turn work. The first row will be a RS row. Work in German short rows as follows.\ 
+Row 1 (RS): Knit 4 (4, 4, 4) [4, 4, 4] (4, 5, 5) 5 sts. Turn, creating a double stitch (DS).\ 
+Row 2 (WS): Purl across. \
+We will now begin working increases for the neckline **while** continuing short rows as follows:\
+Sizes 1 and 2\
+Row 1 (RS): K1, M1R, knit until DS, knit DS, knit 4 sts past DS.\
+Row 2 (WS): Purl across.\
+Row 3 (RS): K1, M1R, K1, M1R, knit until DS, knit 4 sts past DS.\
+Row 4 (WS): Purl across.\
+Row 5 (RS): Repeat Row 3.\
+Row 6 (WS): Repeat Row 4.\
+Sizes 3 - 9\
+Row 1 (RS): K1, M1R, K1, M1R, knit until DS, knit DS, knit - (-, 4, 4) [4, 4, 4] (5, 5, -) - sts past DS.\
+Row 2 (WS): Purl across.\
+Row 3 (RS): Repeat Row 1.\
+Row 4 (WS): Repeat Row 2.\
+Row 5 (RS): Repeat Row 1.\
+Row 6 (WS): Repeat Row 2.\
+Sizes 10 and 11\
+Row 1 (RS): K1, M1R, knit until DS, knit DS, knit 5 sts past DS.\
+Row 2 (WS): Purl across.\
+Row 3 (RS): K1, M1R, K1, M1R, knit until DS, knit DS, knit 5 sts past DS.\
+Row 4 (WS): Purl across.\
+Row 5 (RS): Repeat Row 3.\
+Row 6 (WS): Repeat Row 4.\
+Row 7 (RS): Repeat Row 3.\
+Row 8 (WS): Repeat Row 4.\
+Leave sts on hold on cable while you create the right back triangle.\
+*Right Back Triangle*\
+Cast on `r shoulderwidth.sts` stitches. Turn work. The first row will be a WS row. Work in German short rows as follows.\
+Row 1 (WS): Purl 4 (4, 4, 4) [4, 4, 4] (4, 5, 5) 5 sts. Turn, creating a double stitch (DS).\ 
+Row 2 (RS): Knit across.\
+We will now begin working increases for the neckline **while** continuing short rows as follows:\
+Sizes 1 and 2\
+Row 1 (WS): P1, M1L, purl until DS, purl DS, purl 4 sts past DS.\
+Row 2 (RS): Knit across.\
+Row 3 (WS): P1, M1L, P1, M1L, purl until DS, purl 4 sts past DS.\
+Row 4 (RS): Repeat Row 2.\
+Row 5 (WS): Repeat Row 3.\
+Sizes 3 - 9\
+Row 1 (WS): P1, M1L, P1, M1L, purl until DS, purl DS, purl - (-, 4, 4) [4, 4, 4] (5, 5, -) - sts past DS.\
+Row 2 (RS): Knit across.\
+Row 3 (WS): Repeat Row 1.\
+Row 4 (RS): Repeat Row 2.\
+Row 5 (WS): Repeat Row 1.\
+Sizes 10 and 11\
+Row 1 (WS): P1, M1L, purl until DS, purl DS, purl 5 sts past DS.\
+Row 2 (RS): Knit across.\
+Row 3 (WS): P1, M1L, P1, M1L, purl until DS, purl DS, purl 5 sts past DS.\
+Row 4 (RS): Knit across.\
+Row 5 (WS): Repeat Row 3.\
+Row 6 (RS): Repeat Row 4.\
+Row 7 9WS): Repeat Row 3.\
+```{r, include=FALSE}
+# Neckline increases are complete for all sizes. EXCLUDING FIRST SHORT ROW, 3 RS rows have been worked for sizes 1-9, 4 RS rows have been worked for sizes 10-11. 
+```
+*All Sizes*\
+Knit across right back triangle, cast on `r neck_80` sts, knit left triangle until DS, knit DS, knit 4 (4, 5, 5) [5, 5, 5] (5, 5, 5) 6 sts past DS.\
+Row 1 (WS): Purl until right side DS, purl DS, purl 4 (4, 5, 5) [5, 5, 5] (5, 5, 5) 6 sts past DS.\
+Row 2 (RS): Knit until left side DS, knit DS, knit 4 (4, 5, 5) [5, 5, 5] (5, 5, 5) 6 sts past DS.\
+Row 3 (WS): Repeat Row 1.\
+Row 4 (RS): Knit until left side DS, knit DS, knit 5 (5, 5, 5) [5, 5, 5] (5, 5, 5) 6 sts past DS.\
+Row 5 (WS): Purl until right side DS, purl DS, purl 5 (5, 5, 5) [5, 5, 5] (5, 5, 5) 6 sts past DS.\
+Sizes 1-9\
+Row 6 (RS): Knit until left side DS, knit DS, knit 5 (5, 5, 5) [5, 5, 5] (5, 5, -) - sts past DS.\
+Row 7 (WS): Knit until left side DS, knit DS, knit 5 (5, 5, 5) [5, 5, 5] (5, 5, -) - sts past DS.  
+
+You should have `r (shoulderwidth.sts * 2) + neckwidth.sts` stitches. 
+
+
+```{r, include=FALSE}
+# now we need to work in stockinette with decreases until we reach armscye increase depth 
+armdepth.row <-  RoundTo(
+    bc_garment_measurement_final[c(10),c(1:11)] * row,
+    2)
+
+# we also ought to do a measurement check here
+```
+
+Now work in stockinette for `r armdepth.row`rows
+Leave stitches on hold while we work the front.
+
+```{r, include=FALSE}
+# to calculate the front neckline increases, we need to know the neck width in stitches, and the neck depth in rows.
+# we already have a neckwidth.sts object, so lets calculate rows for depth. i'm going to go with 8 cm as my depth.
+neckdepth.row <-  round(8 * row)
+# this will give us 22 rows to work with.
+# neck cast on will give us the stitches to cast on when joining the shoulders.
+neck.caston <- RoundTo(
+    neckwidth.sts / 3,
+    2)
+# the remaining stitches we will have to increase on each side are
+neckincrease <- (neckwidth.sts - neck.caston)/2
+
+# i think doing a 5, 4, 3, 2, 1, 1, 1 method should work well? note that these numbers start at the neckline and go up the shoulder
+# size 1 and 2: 3, 2, 1, -, 1, -, 1, -, 1, -, 1 = 10 sts over 11 increase rows (22 rows total)
+# size 3-9:  3, 2, 1, 1, 1, 1, 1, -, 1, -, 1 = 12 sts over 11 increase rows
+# size 10 and 11: 3, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1 = 14 sts over 11 increase rows
+# this should give us nice sloping neckline
+
+```
+
+**Left Front**  
+Pick up `r shoulderwidth.sts` along the left slanted side of the back. Start at the edge of the back and move inward, so the first row will be a knit row.\ 
+We will work in stockinette while increasing for the neckline as follows:\
+
+*Size 1 and 2:*\
+Row 1 (RS): K1, M1R, knit until end of row.\
+Row 2 (WS): Purl across.\
+Row 3 (RS): Knit across.
+Row 4 (WS): Purl across.
+Work rows 1-4 a total of 4 times (4 sts have been increased).\
+Work row 1 once more (5 sts total have been increased). You should end on a RS row.\
+Now work 2 more increase rows as follows:\
+Row 1 (WS): Purl across. Cast on 2 sts using the backward loop method.\
+Row 2 (RS): Knit across.\
+Row 3 (WS) Purl across. Cast on 3 sts using the backward loop method.\
+You should have `r shoulderwidth.sts + 10` sts. Place sts on hold while you work the right front. 
+*Size 3-9:*\
+Row 1 (RS): K1, M1R, knit until end of row.\
+Row 2 (WS): Purl across.\
+Row 3 (RS): Knit across.\
+Row 4 (WS): Purl across.\
+Work rows 1-4 a total of 2 times (2 sts have been increased).\
+Work rows 1-2 4 more times (4 sts have been increased).\
+Work row 1 once more (7 sts total have been increased). You should end on a RS row.\
+Now work 2 more increase rows as follows:\
+Row 1 (WS): Purl across. Cast on 2 sts using the backward loop method.\
+Row 2 (RS): Knit across.\
+Row 3 (WS) Purl across. Cast on 3 sts using the backward loop method.\
+You should have `r shoulderwidth.sts + 12` sts. Place sts on hold while you work the right front.
+
+*Sizes 10 and 11*\
+Row 1 (RS): K1, M1R, knit until end of row.\
+Row 2 (WS): Purl across.\
+Row 3 (RS): Knit across.\
+Row 4 (WS): Purl across.\
+Work rows 1-4 a total of 8 times (8 sts have been increased).\
+Work row 1 once more (9 sts total have been increased). You should end on a RS row.\
+Now work 2 more increase rows as follows:\
+Row 1 (WS): Purl across. Cast on 2 sts using the backward loop method.\
+Row 2 (RS): Knit across.\
+Row 3 (WS) Purl across. Cast on 3 sts using the backward loop method.\
+You should have `r shoulderwidth.sts + 14` sts. Place sts on hold while you work the right front.\
+
+**Right Front**\
+The right front will be worked identically to the left front, except in reverse.\
+Pick up `r shoulderwidth.sts` along the left slanted side of the back. Start at the center of the
+back and move outward, so the first row will be a knit row.\ 
+We will work in stockinette while increasing for the neckline as follows:\
+
+*Size 1 and 2:*\
+Row 1 (RS): Knit until 1 stitch from end of row, M1L, knit until end of row.\
+Row 2 (WS): Purl across.\
+Row 3 (RS): Knit across.\
+Row 4 (WS): Purl across.\
+Work rows 1-4 a total of 5 times (5 sts have been increased).\
+Now work 2 more increase rows as follows:\
+Row 1 (RS): Knit across. Cast on 2 sts using the backward loop method.\
+Row 2 (WS): Purl across.\
+Row 3 (RS) Knit across. Cast on 3 sts using the backward loop method.\
+Row 4 (WS) Purl across.
+You should have `r shoulderwidth.sts + 10` sts. Leave stitches on needle. 
+
+*Size 3-7:*\
+Row 1 (RS): Knit until 1 stitch from end of row, M1L, knit until end of row.\
+Row 2 (WS): Purl across.\
+Row 3 (RS): Knit across.\
+Row 4 (WS): Purl across.\
+Work rows 1-4 a total of 2 times (2 sts have been increased).\
+Work rows 1 and 2 5 more times (7 sts have been increased total).\
+Now work 2 more increase rows as follows:\
+Row 1 (RS): Knit across. Cast on 2 sts using the backward loop method.\
+Row 2 (WS): Purl across.\
+Row 3 (RS) Knit across. Cast on 3 sts using the backward loop method.\
+Row 4 (WS) Purl across.
+You should have `r shoulderwidth.sts + 12` sts. Leave stitches on needle. 
+
+*Size 10 and 11:*\
+Row 1 (RS): Knit until 1 stitch from end of row, M1L, knit until end of row.\
+Row 2 (WS): Purl across.\
+Work rows 1-2 a total of 9 times (9 sts have been increased).\
+Now work 2 more increase rows as follows:\
+Row 1 (RS): Knit across. Cast on 2 sts using the backward loop method.\
+Row 2 (WS): Purl across.\
+Row 3 (RS) Knit across. Cast on 3 sts using the backward loop method.\
+Row 4 (WS) Purl across.\
+You should have `r shoulderwidth.sts + 14` sts. Leave stitches on needle.\
+
+**All Sizes**\
+Knit across right front, cast on `r neck.caston` sts, knit across left front. You should have `r (shoulderwidth.sts * 2) + neckwidth.sts` stitches.\
+
+Continue working in stockinette for `r armdepth.row - neckdepth.row` rows.\
+You will now join the front piece with the back piece as follows:\
+Knit across front, knit across back. Place marker for beginning of round.\
+You should have `r ((shoulderwidth.sts * 2) + neckwidth.sts)*2` stitches.\
+```{r, include = FALSE}
+# calculte body sts properly and check against that.
+# calculate armscye to waist in rows.
+armwaist.row <-  RoundTo(
+    bc_garment_measurement_final[c(11),c(1:11)] * row,
+    2)
+# nobody wants to calculate this many rows, so lets convert it to cm (we should do inches as well)
+armwaist.ms <- round(armwaist.row / row)
+# this is the same thing as line 436 without multiplying it by row 
+```
+Knit in the round until work measures `r armwaist.ms` cm from the center of the underarm.\
+Switch to US ___ needles and work 5 cm in 1 x 2 ribbing (* knit 1, purl 2 * , repeat from * to *)
+Work 2 rounds of double knitting.\
+Bind off in pattern using standard or tubular bind off.\ 
+###**SLEEVES**\
+
+```{r, include=FALSE}
+# sleeves will include:
+# calculating picking up 3 in 4 sts
+pickup.sts <- RoundTo(
+    ((armdepth.row*2) / 3) * 2,2)
+# calculating decreases
+wrist.sts <- RoundTo(
+    bc_garment_measurement_final[c(6),c(1:11)] * sts,
+    2)
+armlength <- RoundTo(
+    bc_garment_measurement_final[c(15),c(1:11)] * row,
+    2)
+armdecrease.sts <- RoundTo(
+    pickup.sts - wrist.sts,2)
+armdecrease.rate <- armlength / armdecrease.sts
+# normally i would use the upperarm measurement not picked up stitches but it is inaccurate for this design specifically
+# it looks like we will decrease at intervals of every 2 or 3 decrease rows. 
+# with 120 rows, we will decrease at
+# sz 1: 4 x 24 (96) + 3 x 8 (24) = 32 sts decreased over 120 rows
+# sz 2: = 4 x 18 (72) + 3 x 16 (48) = 34 sts over 120 rows
+# sz 3: = 4 x 12 (48) + 3 x 24 (72) = 36
+# sz 4: every 3rd row 40 times
+# sz 5: every 3rd row 40 times
+# sz 6: 3 x 36 (108) + 2 x 6 (12) = 42
+# sz 7 and 8: 3 x 32 (96) + 2 x 12 (24) = 44
+# sz 9: 3 x 20 (60) + 2 x 30 (60) = 50
+# sz 10: 3 x 16 (48) + 2 x 36 (72) = 52
+# sz 11: 3 x 12 (36) + 2 x 42 (84) = 54
+```
+
+Starting at the bottom of the armhole, pick up and knit `r pickup.sts`. Place marker for beginning of round.\ 
+Work in stockinette with decreases every 4 (4, 4, 3) [3, 3, 3] (3, 3, 3) 3 rows a total of 24 (18, 12, 40) [40, 36, 32] (32, 20, 16) 12 times, then with decreases every 3 (3, 3, 3) [3, 2, 2] (2, 2, 2) 2 rows a total of 8 (16, 24, 0) [0, 6, 12] (12, 30, 36) 42 times. Sleeve should measure `r round(armlength / row)` cm. You should have `r wrist.sts`\
+Work 4 cm in 1 x 2 rib.\ 
+Work 2 rounds of double knitting before binding off in pattern or with tubular bind off.\ 
+
+### **COLLAR**  
+
+``` {r, include = FALSE}
+# collar:
+# calculating picking up 3 in 4 sts
+collar.sts <- ((28 + neck.caston + neck_80) / 4) * 3
+# i got the 28 by adding 6 rows to shape the back neckline and 22 rows to shape the front neckline. neck.caston is our front neck cast on sts, neck_80 is our back neck cast on sts. 
+```
+Pick up `r collar.sts`. This is equivalent to picking up around 3 in 4 sts around the neckline.\ 
+Work 7 rounds of 1x1 ribbing.\ 
+Work 3 rounds of double knitting.\
+Work 6 rounds of 1x1 ribbing.\ 
+Fold and attach collar while binding off.\ 
+Weave in ends and block sweater.\ 
+
+
+
